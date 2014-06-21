@@ -23,6 +23,10 @@ from PIL import Image
 from PIL import ImageTk
 
 
+ROUTE = 'RT07'
+TABLE_ID = 'Table1'
+fromFile = False
+
 class MapFrame(Frame):
   def __init__(self, master, im):
     Frame.__init__(self, master)
@@ -33,38 +37,50 @@ class MapFrame(Frame):
     self.image_label.grid()
     self.grid()
 
-ROUTE = 'RT07'
-TABLE_ID = 'Table1'
-fromFile = False
 
-if(fromFile):
-  mText = urlopen('http://www.geolabvirtualmaps.com/pda/metrowest.aspx')\
-  .read().decode('utf-8')
-else:
-  mText = open('mwrta.html').read()
+'''Returns a list of tuples in the form of (bus address, travel direction)'''
+def getBusData(route, debugFromFile=False, tableID='Table1'):
+  if(not debugFromFile):
+    mText = urlopen('http://www.geolabvirtualmaps.com/pda/metrowest.aspx')\
+    .read().decode('utf-8')
+  else:
+    mText = open('mwrta.html').read()
 
-table = BeautifulSoup(mText).find(id=TABLE_ID)
-buses = []
+  table = BeautifulSoup(mText).find(id=tableID)
+  buses = []
+  for i in table.children:
+    if( i == '\n'): continue
+    if(i.td.string == ROUTE ):
+      row = [cell.string for cell in i.children if cell != '\n']
+      #only bothering with 8 directions here
+      bus = (row[4].replace(' ','+'), row[5].split(' ')[0])
+      buses.append(bus)
+  return buses
 
-#need to get rid of tbody
-for i in table.children:
-  if( i == '\n'): continue
-  if(i.td.string == ROUTE ):
-    row = [cell.string for cell in i.children if cell != '\n']
-    #only bothering with 8 directions here
-    bus = (row[4].replace(' ','+'), row[5].split(' ')[0])
-    buses.append(bus)
+'''Takes the default request line and adds markers for the buses.'''
+def getRequestLine(buses):
+  request = '''http://maps.googleapis.com/maps/api/staticmap?center=%22'''
+  '''Mathworks+Natick,MA%22&size=500x500&markers=color:red|Mathworks'''
+
+  for bus in buses:
+    request += '&markers=color:green|{}'.format(bus[0])
+  return request
+
+def getStaticMap(requestLine):
+  imData = urlopen(requestLine).read()
+  image = Image.open(BytesIO(imData))
+  return image
 
 
-request = '''http://maps.googleapis.com/maps/api/staticmap?center=%22Mathworks+\
-Natick,MA%22&size=500x500&markers=color:red|Mathworks&markers=color:green|{}'''\
-.format(buses[0][0])
 
-imData = urlopen(request).read()
-image = Image.open(BytesIO(imData))
+def main():
+  buses = getBusData(ROUTE, fromFile, TABLE_ID)
+  requestLine = getRequestLine(buses)
+  print(requestLine)
+  image = getStaticMap(requestLine)
+  mainw = Tk()
+  mainw.frame = MapFrame(mainw, image)
+  mainw.mainloop()
 
-mainw = Tk()
-mainw.frame = MapFrame(mainw, image)
-mainw.mainloop()
-
-
+if __name__ == '__main__':
+  main()
