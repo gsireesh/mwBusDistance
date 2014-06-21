@@ -25,7 +25,8 @@ from PIL import ImageTk
 
 ROUTE = 'RT07'
 TABLE_ID = 'Table1'
-fromFile = False
+FROM_FILE = False
+REFRESH_TIME = 1
 
 class MapFrame(Frame):
   def __init__(self, master, im):
@@ -59,28 +60,34 @@ def getBusData(route, debugFromFile=False, tableID='Table1'):
 
 '''Takes the default request line and adds markers for the buses.'''
 def getRequestLine(buses):
-  request = '''http://maps.googleapis.com/maps/api/staticmap?center=%22'''
-  '''Mathworks+Natick,MA%22&size=500x500&markers=color:red|Mathworks'''
+  request = ('''http://maps.googleapis.com/maps/api/staticmap?center=%22'''
+  '''Mathworks+Natick,MA%22&size=500x500&markers=color:red|Mathworks''')
 
   for bus in buses:
     request += '&markers=color:green|{}'.format(bus[0])
   return request
 
-def getStaticMap(requestLine):
-  imData = urlopen(requestLine).read()
-  image = Image.open(BytesIO(imData))
-  return image
+def updateImage():
+  buses = getBusData(ROUTE, FROM_FILE, TABLE_ID)
+  if(buses):
+    requestLine = getRequestLine(buses)
+    imData = urlopen(requestLine).read()
+    image = Image.open(BytesIO(imData))
+    return image
+  else:
+    return None
 
-
+def updateWindow(window):
+  window.frame.destroy()
+  window.frame = MapFrame(window,updateImage()) 
+  window.after(1000, updateWindow, window)
 
 def main():
-  buses = getBusData(ROUTE, fromFile, TABLE_ID)
-  requestLine = getRequestLine(buses)
-  print(requestLine)
-  image = getStaticMap(requestLine)
+  image = updateImage()
   mainw = Tk()
   mainw.frame = MapFrame(mainw, image)
-  mainw.mainloop()
+  mainw.after(1000, updateWindow, mainw)
+  mainw.mainloop();
 
 if __name__ == '__main__':
   main()
